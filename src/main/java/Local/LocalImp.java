@@ -167,6 +167,8 @@ public class LocalImp implements Specifikacija {
     }
 
     /*
+    * 1 - Insufficient Permission
+    * 7 - Forbidden Extension
     * 404 - Niste konektovani na skladiste
     * 401 - Neispravno ime ili Fajl vec postoji
      */
@@ -174,6 +176,7 @@ public class LocalImp implements Specifikacija {
         if(workingConfig == null) return 404;
         try {
             if(!workingConfig.hasPermission(10)) return 1;
+            if(!workingConfig.extensionAllowed(name)) return 7;
             Files.createFile( Path.of(workingDir + "/" + destPath + "/" + name) );
             return 0;
         } catch (IOException e) {
@@ -203,6 +206,7 @@ public class LocalImp implements Specifikacija {
      * 3 - Not a directory
      * 4 - Prekoracena kolicija fajlova
      * 5 - Prekoracena velicina fajlova
+     * 6 - Prekoracena velicina fajla
      * 401 - Neispravno ime ili Fajl vec postoji
      * 404 - Niste konektovani na skladiste
      */
@@ -214,12 +218,14 @@ public class LocalImp implements Specifikacija {
             if(!Files.isDirectory(Path.of(workingDir + "/" + destPath))) return 3;
                 BasicFileAttributes attr = Files.readAttributes(Path.of(srcPath), BasicFileAttributes.class);
                 if(workingConfig.checkStorageSizeLimit( ( (Long) attr.size()).intValue() ) )
-                    if(workingConfig.checkFileCountLimit(1)) {
-                        Files.copy(Path.of(srcPath), Path.of(workingDir + "/" + destPath).resolve(Path.of(srcPath).getFileName()) );
-                        workingConfig.addFileCount(1);
-                        workingConfig.addFileSize( ( (Long) attr.size()).intValue() );
-                        return 0;
-                    } else return 4;
+                    if(workingConfig.checkFileSizeLimit( ( (Long) attr.size()).intValue() ) )
+                        if(workingConfig.checkFileCountLimit(1)) {
+                            Files.copy(Path.of(srcPath), Path.of(workingDir + "/" + destPath).resolve(Path.of(srcPath).getFileName()) );
+                            workingConfig.addFileCount(1);
+                            workingConfig.addFileSize( ( (Long) attr.size()).intValue() );
+                            return 0;
+                        } else return 4;
+                    else return 6;
                 return 5;
         } catch (IOException e) {
             return 401;
@@ -233,6 +239,8 @@ public class LocalImp implements Specifikacija {
      * 3 - Not a directory
      * 4 - Prekoracena kolicija fajlova
      * 5 - Prekoracena velicina fajlova
+     * 6 - Prekoracena velicina fajla
+     * 7 - Forbidden Extension
      * 401 - Neispravno ime ili Fajl vec postoji
      * 404 - Niste konektovani na skladiste
      */
@@ -245,8 +253,9 @@ public class LocalImp implements Specifikacija {
             try {
                 if(!Files.isRegularFile(Path.of(srcPath))) return 2;
                 if(!Files.isDirectory(Path.of(workingDir + "/" + destPath))) return 3;
-                workingConfig.extensionAllowed(retrieveExt(srcPath));
+                if(!workingConfig.extensionAllowed(retrieveExt(srcPath))) return 7;
                 BasicFileAttributes attr = Files.readAttributes(Path.of(srcPath), BasicFileAttributes.class);
+                if(!workingConfig.checkFileSizeLimit( ( (Long) attr.size()).intValue() ) ) return 6;
                 size += ( (Long) attr.size()).intValue();
                 count ++;
             } catch (IOException e) {
@@ -363,8 +372,6 @@ public class LocalImp implements Specifikacija {
                 }
                 Path putanja = it.next();
 
-                System.out.println(putanja.toString());
-
                 if(Files.isDirectory(putanja)) {
 
                     downloadFolder( srcPath + "/" + putanja.getFileName() , destPath );
@@ -378,7 +385,6 @@ public class LocalImp implements Specifikacija {
                 else downloadQueue.add(srcPath + "/" + putanja.getFileName());
             }
             if(handleFiles) {
-                System.out.println("Downloading...");
                 Thread.sleep(1000);
                 for (String path : downloadQueue) {
                     downloadFile(path, destPath);
