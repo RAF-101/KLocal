@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
 
@@ -17,6 +19,8 @@ public class LocalImp implements Specifikacija {
 
     private Path workingDir = null;
     private Config workingConfig = null;
+    private List<String> downloadQueue = null;
+    boolean startQueue = true;
 
     public LocalImp(){
 
@@ -36,7 +40,7 @@ public class LocalImp implements Specifikacija {
         }
     }
 
-    public int promptInitStorage(String Path) {
+    private int promptInitStorage(String Path) {
         System.out.println("Storage under the provided path was not found. Do you want to create it?");
         Scanner input = new Scanner(System.in);
         String answer = input.nextLine();
@@ -61,7 +65,7 @@ public class LocalImp implements Specifikacija {
     * 401 - Invalid Path
     * 0 - Success
      */
-    public int initStorage(String Path) {
+    private int initStorage(String Path) {
         try {
             Files.createDirectories(java.nio.file.Path.of(Path));
             workingDir = java.nio.file.Path.of(Path);
@@ -71,8 +75,7 @@ public class LocalImp implements Specifikacija {
         }
     }
 
-    @Override
-    public int initConfig() {
+    private int initConfig() {
         try {
             FileWriter file = new FileWriter( workingDir + "\\config.json" );
             file.write(Config.initConfig());
@@ -86,12 +89,24 @@ public class LocalImp implements Specifikacija {
         }
     }
 
+    private int updateConfig() {
+        try {
+            FileWriter file = null;
+            file = new FileWriter( workingDir + "\\config.json" );
+            file.write(workingConfig.getJSONForm());
+            file.close();
+        } catch (IOException e) {
+            return 401;
+        }
+        return 0;
+    }
+
     /*
      * 2 - Occupied
      * 1 - Invalid User
      * 0 - Success
      */
-    public int requestLogin() {
+    private int requestLogin() {
 
         if(!Files.isRegularFile(Path.of(workingDir + "\\config.json"))){
             return promptInitStorage(workingDir.toString());
@@ -115,6 +130,10 @@ public class LocalImp implements Specifikacija {
             workingDir = null;
             return 1;
         }
+    }
+
+    private String retrieveExt(String ext){
+        return ( ext . substring( ext.lastIndexOf(".") ) );
     }
 
     /*
@@ -196,7 +215,7 @@ public class LocalImp implements Specifikacija {
                 BasicFileAttributes attr = Files.readAttributes(Path.of(srcPath), BasicFileAttributes.class);
                 if(workingConfig.checkStorageSizeLimit( ( (Long) attr.size()).intValue() ) )
                     if(workingConfig.checkFileCountLimit(1)) {
-                        Files.move(Path.of(srcPath), Path.of(workingDir + "/" + destPath));
+                        Files.copy(Path.of(srcPath), Path.of(workingDir + "/" + destPath).resolve(Path.of(srcPath).getFileName()) );
                         workingConfig.addFileCount(1);
                         workingConfig.addFileSize( ( (Long) attr.size()).intValue() );
                         return 0;
@@ -226,6 +245,7 @@ public class LocalImp implements Specifikacija {
             try {
                 if(!Files.isRegularFile(Path.of(srcPath))) return 2;
                 if(!Files.isDirectory(Path.of(workingDir + "/" + destPath))) return 3;
+                workingConfig.extensionAllowed(retrieveExt(srcPath));
                 BasicFileAttributes attr = Files.readAttributes(Path.of(srcPath), BasicFileAttributes.class);
                 size += ( (Long) attr.size()).intValue();
                 count ++;
@@ -270,54 +290,133 @@ public class LocalImp implements Specifikacija {
         } catch (IOException e) {
             return 401;
         }
-    }
+    }//"C:\Users\KYGAS\Desktop\Test\Test1\Test1231\b"
 
     public int deleteFolder(String path) {
         if(workingConfig == null) return 404;
-        // delete folder + check all files/folders affected for size and count D:
-        return 0;
+        try {
+            if(!workingConfig.hasPermission(1000)) return 1;
+            if(!Files.isDirectory(Path.of(path))) return 2;
+
+            Iterator<Path> it = Files.list(Path.of(path)).iterator();
+            while(it.hasNext()) {
+                Path putanja = it.next();
+                if(Files.isDirectory(putanja)) {
+                    deleteFolder(putanja.toString());
+                    Files.delete(putanja);
+                }
+                else deleteFile(putanja.toString());
+            }
+            return 0;
+        } catch (IOException e) {
+            return 401;
+        }
     }
 
     public List<String> listFiles(String path) {
         if(workingConfig == null) return null;
+        try {
+            if(!workingConfig.hasPermission(1)) return null;
+            if(!Files.isDirectory(Path.of(path))) return null;
 
-        return null;
+            List<String> lista = new ArrayList<String>();
+
+            Iterator<Path> it = Files.list(Path.of(path)).iterator();
+            while(it.hasNext()) {
+                lista.add(it.next().toString());
+            }
+            return lista;
+        } catch (IOException e) {
+            return null;
+        }
     }
+
 
     public int moveFile(String srcPath, String destPath) {
         if(workingConfig == null) return 404;
-
-        return 0;
-    }
-
-    public int downloadPath(String srcPath, String destPath) {
-        if(workingConfig == null) return 404;
-
-        return 0;
+        if(!workingDir.toString().contains(srcPath) || !workingDir.toString().contains(destPath) ) return 403;
+        try {
+            if(!workingConfig.hasPermission(100)) return 1;
+            if(!Files.isRegularFile(Path.of(workingDir + "/" + srcPath))) return 2;
+            if(!Files.isRegularFile(Path.of(workingDir + "/" + destPath))) return 3;
+                Files.move(Path.of(workingDir + "/" + srcPath), Path.of(workingDir + "/" + destPath).resolve(Path.of(srcPath).getFileName())   );
+            return 0;
+        } catch (IOException e) {
+            return 401;
+        }
     }
 
     public int downloadFolder(String srcPath, String destPath) {
         if(workingConfig == null) return 404;
+        try {
+            if(!workingConfig.hasPermission(1)) return 1;
+            if(!Files.isDirectory(Path.of(workingDir + "/" + srcPath))) return 2;
+            Iterator<Path> it = Files.list(Path.of(workingDir + "/" + srcPath)).iterator();
 
-        return 0;
+            boolean handleFiles = startQueue;
+            startQueue = false;
+
+            while(it.hasNext()) {
+                if(downloadQueue == null) {
+                    downloadQueue = new ArrayList<String>();
+
+                }
+                Path putanja = it.next();
+
+                System.out.println(putanja.toString());
+
+                if(Files.isDirectory(putanja)) {
+
+                    downloadFolder( srcPath + "/" + putanja.getFileName() , destPath );
+                    Files.createDirectories(
+                            Path.of(
+                                    destPath + "/" + srcPath + "/" + putanja.getFileName()
+                            )
+                    );
+
+                }
+                else downloadQueue.add(srcPath + "/" + putanja.getFileName());
+            }
+            if(handleFiles) {
+                System.out.println("Downloading...");
+                Thread.sleep(1000);
+                for (String path : downloadQueue) {
+                    downloadFile(path, destPath);
+                }
+                startQueue = true;
+            }
+            return 0;
+        } catch (IOException | InterruptedException e) {
+            return 401;
+        }
     }
 
     public int downloadFile(String srcPath, String destPath) {
         if(workingConfig == null) return 404;
-
-        return 0;
-    }
-
-    @Override
-    public int updateConfig() {
         try {
-            FileWriter file = null;
-            file = new FileWriter( workingDir + "\\config.json" );
-            file.write(workingConfig.getJSONForm());
-            file.close();
+            if(!workingConfig.hasPermission(10)) return 1;
+            if(!Files.isRegularFile(Path.of( workingDir + "/" + srcPath))) return 2;
+            if(!Files.isDirectory( Path.of( destPath ) ) ) return 3;
+
+            Files.copy(Path.of(workingDir + "/" + srcPath), Path.of(destPath + "/" + srcPath ) );
+
+            return 0;
         } catch (IOException e) {
             return 401;
         }
-        return 0;
+    }
+
+    @Override
+    public int addExtBan(String s) {
+        if(workingConfig == null) return 404;
+        if(!workingConfig.hasPermission(10000)) return 1;
+        return workingConfig.addExtensionBan(s)?0:1;
+    }
+
+    @Override
+    public int removeExtBan(String s) {
+        if(workingConfig == null) return 404;
+        if (!workingConfig.hasPermission(10000)) return 1;
+        return workingConfig.removeExtensionBan(s)?0:1;
     }
 }
