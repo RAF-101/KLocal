@@ -26,6 +26,7 @@ public class LocalImp implements Specifikacija {
 
     }
     /*
+    * 6 - Is a file
     * 1 - Putanja je fajl
     * 0 - Uspesno
     * 401 - Nema Permisije
@@ -35,7 +36,7 @@ public class LocalImp implements Specifikacija {
             workingDir = java.nio.file.Path.of(Path);
             return requestLogin();
         }else{
-            if(Files.isRegularFile(java.nio.file.Path.of(Path))) return 1;
+            if(Files.isRegularFile(java.nio.file.Path.of(Path))) return 6;
             else return promptInitStorage(Path);
         }
     }
@@ -57,7 +58,7 @@ public class LocalImp implements Specifikacija {
             workingConfig.loginUser(un, pw);
             return updateConfig();
         }else{
-            return 1; // error, not found
+            return 3; // error, not found
         }
     }
 
@@ -138,7 +139,7 @@ public class LocalImp implements Specifikacija {
 
     /*
     * 404 - Config nonexistant
-    * 403 - Nonadequate permisson
+    * 403 - Insufficient permisson
     * 402 - Invalid Permission
      */
     public int requestNewUser() {
@@ -343,11 +344,10 @@ public class LocalImp implements Specifikacija {
 
     public int moveFile(String srcPath, String destPath) {
         if(workingConfig == null) return 404;
-        if(!workingDir.toString().contains(srcPath) || !workingDir.toString().contains(destPath) ) return 403;
         try {
             if(!workingConfig.hasPermission(100)) return 1;
             if(!Files.isRegularFile(Path.of(workingDir + "/" + srcPath))) return 2;
-            if(!Files.isRegularFile(Path.of(workingDir + "/" + destPath))) return 3;
+            if(!Files.isDirectory(Path.of(workingDir + "/" + destPath))) return 3;
                 Files.move(Path.of(workingDir + "/" + srcPath), Path.of(workingDir + "/" + destPath).resolve(Path.of(srcPath).getFileName())   );
             return 0;
         } catch (IOException e) {
@@ -360,6 +360,7 @@ public class LocalImp implements Specifikacija {
         try {
             if(!workingConfig.hasPermission(1)) return 1;
             if(!Files.isDirectory(Path.of(workingDir + "/" + srcPath))) return 2;
+            if(!Files.isDirectory(Path.of( destPath ))) return 3;
             Iterator<Path> it = Files.list(Path.of(workingDir + "/" + srcPath)).iterator();
 
             boolean handleFiles = startQueue;
@@ -400,7 +401,7 @@ public class LocalImp implements Specifikacija {
     public int downloadFile(String srcPath, String destPath) {
         if(workingConfig == null) return 404;
         try {
-            if(!workingConfig.hasPermission(10)) return 1;
+            if(!workingConfig.hasPermission(1)) return 1;
             if(!Files.isRegularFile(Path.of( workingDir + "/" + srcPath))) return 2;
             if(!Files.isDirectory( Path.of( destPath ) ) ) return 3;
 
